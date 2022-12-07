@@ -1,0 +1,370 @@
+//R0: PROMPT
+//R3: INPUT
+
+
+MOV R12, #0x0A // whitespace
+BL Program
+
+Program:
+    MOV R0, #msgCodemakerName
+    MOV R3, #CodeMakerName
+    BL ReadInputStr
+
+    MOV R0, #msgCodebreakerName
+    MOV R3, #CodebreakerName
+    BL ReadInputStr
+
+    MOV R0, #msgMaxAttempts
+    BL ReadNumInput
+    STR R3, attemptLimit
+    MOV R0, #1 
+    STR R0, .Resolution
+
+    BL getcode
+    BL comparecodes
+    EndProgram:
+        B End
+
+ReadInputStr:
+    PUSH {LR}
+    STR R0, .WriteString
+    STR R3, .ReadString
+    STR R3, .WriteString
+    STRB R12, .WriteChar
+    POP {LR}
+    RET
+
+ReadNumInput:
+    PUSH {LR}
+    STR R0, .WriteString
+    LDR R3, .InputNum
+    STR R3, .WriteSignedNum
+    STRB R12, .WriteChar
+    RET
+
+ReadSecretStr:
+    PUSH {LR}
+    MOV R0, #CodeMakerName
+    STR R0, .WriteString
+    MOV R0, #msgSecrets
+    STR R0, .WriteString
+    STR R3, .ReadString
+    STRB R12, .WriteChar
+    POP {LR}
+    RET
+
+getcode:
+    PUSH {R0, R3, R8, LR}
+    LoopUntilValidSecret:
+        MOV R3, secretcode
+        BL ReadSecretStr
+        BL CodeValidation
+        CMP R8, #1
+        BNE LoopUntilValidSecret    
+    EndGetSecrets:
+        POP {R0, R3, R8, LR}
+        RET
+
+getquerycode:
+    PUSH {R0, R3, R8, R11, LR}
+    LoopUntilValid:
+        MOV R3, #querycode
+        MOV R0, #msgSecretInput
+        BL ReadInputStr
+        BL CodeValidation
+        CMP R8, #1
+        BNE LoopUntilValid    
+    Endgetquerycode:
+        POP {R0, R3, R8, R11, LR}
+        RET
+
+// validate input code
+CodeValidation:
+    // code address stored at R3
+    PUSH {R0, R1, R2, R4, LR}
+    MOV R1, #0
+    MOV R2, #code_length
+    LDR R2, [R2]
+    MOV R11, #0
+    LoopCodeValidation:
+        CMP R1, R2
+        BGT CodeErrors //  Error if wrong length
+        LDRB R0, [R3 + R1]
+        CMP R0, #0
+        BEQ EndCodeValidation
+        BL ColorValidation // validate if charater is a valid color
+        CMP R11, #0
+        BNE ErrorCodeValidation
+        BL RepeatCharValidation
+        CMP R11, #0
+        BNE ErrorCodeValidation
+        ADD R1, R1, #1
+        CMP R0, #0
+        BNE LoopCodeValidation
+    EndCodeValidation:
+        MOV R8, #1
+        POP {R0, R1, R2, R4, LR}
+        RET
+    ErrorCodeValidation:
+        POP {R0, R1, R2, R4, LR}
+        RET
+
+RepeatCharValidation:
+    MOV R6, R1
+    ADD R6, R6, #1
+    LoopRepeatCharValidation:
+        LDRB R4, [R3 + R6]
+        CMP R4, R0
+        BEQ CodeErrors
+        ADD R6, R6, #1
+        CMP R4, #0
+        BNE LoopRepeatCharValidation
+    EndRepeatCharValidation:
+        RET
+
+    
+ColorValidation:
+    PUSH {R1, R2, R3, R4, LR}
+    MOV R1, #colorsArray
+    MOV R2, #0
+    MOV R3, #24
+    ColorLoop:
+        CMP R2, R3
+        BEQ CodeErrors
+        CMP R11, #0
+        BNE EndColorValidation
+        LDR R4, [R1 + R2]
+        ADD R2, R2, #4
+        CMP R4, R0
+        BEQ EndColorValidation
+        CMP R2, R3
+        BLT ColorLoop
+    BL CodeErrors
+    EndColorValidation:
+        POP {R1, R2, R3, R4, LR}
+        RET
+        
+CodeErrors:
+    PUSH {R0, LR}
+    MOV R0, #msgError
+    STR R0, .WriteString
+    STRB R12, .WriteChar
+    MOV R11, #1
+    POP {R0, LR}
+    RET
+
+comparecodes:
+    PUSH {R0, R1, R2, R3, R4, R5, R6, R7, R8, R9, R10, R11, R12, LR}
+    MOV R0, #1 // index counter
+    MOV R1, secretcode
+    MOV R2, #attemptLimit
+    LDR R2, [R2]
+    ADD R2, R2, #1
+    // MOV R2, #10
+    MOV R3, #querycode
+    MOV R11, #0
+    LoopCompareCodes:
+        CMP R0, R2
+        BEQ Lose
+        MOV R4, #CodebreakerName
+        STR R4, .WriteString
+        MOV R4, #msgCurrentAttempt
+        STR R4, .WriteString
+        STR R0, .WriteSignedNum
+        STRB R12, .WriteChar
+        BL getquerycode
+        BL QueryValidation
+        BL DrawCode
+        ADD R11, R11, #512
+        STR R11, .WriteSignedNum // Pos matches
+        MOV R8, #msgMatchPos
+        MOV R9, #msgMatchColor
+        STR R8, .WriteString
+        STR R6, .WriteSignedNum // Pos matches
+        STR R9, .WriteString
+        STR R7, .WriteSignedNum // Col matches
+        STRB R12, .WriteChar
+        CMP R6, #4
+        BEQ Win
+        ADD R0, R0, #1
+        CMP R0, R2
+        BEQ Lose
+        BLT LoopCompareCodes
+    Win:
+        MOV R4, #CodebreakerName
+        STR R4, .WriteString
+        MOV R4, #msgWinner
+        STR R4, .WriteString
+        STRB R12, .WriteChar
+        BL GameOver
+    Lose:
+        MOV R4, #CodebreakerName
+        STR R4, .WriteString
+        MOV R4, #msgLoser
+        STR R4, .WriteString
+        STRB R12, .WriteChar
+        Bl GameOver
+    GameOver:
+        MOV R4, #msgGameOver
+        STR R4, .WriteString
+        STRB R12, .WriteChar
+        POP {R0, R1, R2, R3, R4, R5, R6, R7, R8, R9, R10, R11, R12, LR}
+        RET
+    ErrorGame:
+        POP {R0, R1, R2, R3, R4, R5, R6, R7, R8, R9, R10, R11, R12, LR}
+        RET
+
+QueryValidation:
+    PUSH {R0, R1, R2, R3, R4, LR}
+    MOV R0, #0  //index
+    MOV R1, #code_length
+    LDR R1, [R1]
+    MOV R2, secretcode
+    MOV R3, #querycode
+    MOV R6, #0
+    MOV R7, #0
+    LoopQueryValidation:
+        CMP R0, R1
+        BEQ EndQueryValidation // error if wrong length
+        LDRB R4, [R2 + R0]
+        LDRB R5, [R3 + R0]
+        CMP R4, R5
+        BEQ AddToCase1
+        BNE AddToCase2
+    LoopQueryValidationNext:
+        ADD R0, R0, #1
+        CMP R0, #0
+        BNE LoopQueryValidation
+    AddToCase1:
+        ADD R6, R6, #1
+        BL LoopQueryValidationNext
+    AddToCase2:
+        PUSH {R0, LR}
+        MOV R0, R5
+        BL CheckColor
+        ADD R7, R7, R8
+        POP {R0, LR}
+        BL LoopQueryValidationNext
+    EndQueryValidation:
+        //MOV R6, #case_1
+        // MOV R7, #case_2
+        POP {R0, R1, R2, R3, R4, LR}
+        RET
+
+CheckColor:
+    PUSH {R1, R2, R3, R4, R5, LR}
+    MOV R1, secretcode
+    MOV R2, #0
+    MOV R3, #24
+    LoopCheckColor:
+        CMP R2, R3
+        BEQ EndCheckColorNoMatch
+        LDRB R4, [R1 + R2]
+        ADD R2, R2, #1
+        CMP R4, R0
+        BEQ EndCheckColorWithMatch
+        CMP R2, R3
+        BLT LoopCheckColor
+    EndCheckColorNoMatch:
+        MOV R8, #0
+        BL EndCheckColor
+    EndCheckColorWithMatch:
+        MOV R8, #1
+        BL EndCheckColor
+    EndCheckColor:
+        POP {R1, R2, R3, R4, R5, LR}
+        RET
+
+DrawCode:
+    PUSH {R0, R1, R2, R3, R4, R5, LR}
+    MOV R0, #querycode
+    MOV R1, #0
+    MOV R2, #0
+    ADD R2, R2, R11
+    MOV R3, #4
+    LoopDrawCode:
+        LDRB R4, [R0+R1]
+        BL DrawPixel
+        ADD R1, R1, #1
+        ADD R2, R2, #8
+        CMP R1, R3
+        BLT LoopDrawCode
+        BEQ EndDrawCode
+    EndDrawCode:
+        POP {R0, R1, R2, R3, R4, R5, LR}
+        RET
+
+DrawPixel:
+    PUSH {R0, R1, R2, LR}
+        CMP R4, #114
+        BEQ DrawRed
+        CMP R4, #103
+        BEQ DrawGreen
+        CMP R4, #98
+        BEQ DrawBlue
+        CMP R4, #121
+        BEQ DrawYellow
+        CMP R4, #112
+        BEQ DrawPurple
+        CMP R4, #99
+        BEQ DrawCyan
+    DrawRed:
+        MOV R0, #.red
+        BL EndDrawPixel
+    DrawGreen:
+        MOV R0, #.green
+        BL EndDrawPixel
+    DrawBlue:
+        MOV R0, #.blue
+        BL EndDrawPixel
+    DrawYellow:
+        MOV R0, #.yellow
+        BL EndDrawPixel
+    DrawPurple:
+        MOV R0, #.purple
+        BL EndDrawPixel
+    DrawCyan:
+        MOV R0, #.cyan
+        BL EndDrawPixel
+    EndDrawPixel:
+        MOV R1, #.PixelScreen
+        STR R0, [R1+R2]
+        POP {R0, R1, R2, LR}
+        RET
+
+End:
+    HALT
+
+// declare labels
+querycode: .BLOCK 128
+code_length: 4
+secretcode: .BLOCK 128
+attemptLimit: .WORD 0
+
+// declare players name
+CodeMakerName: .BLOCK 128
+CodebreakerName: .BLOCK 128
+
+// declare messages
+msgCodemakerName: .ASCIZ "Codemaker is "
+msgCodebreakerName: .ASCIZ "Codebreaker is "
+msgMaxAttempts: .ASCIZ "Maximum number of guesses: "
+msgSecrets: .ASCIZ ", please intput 4 characters secret code: "
+msgCurrentAttempt: .ASCIZ ", this is guess number: "
+msgSecretInput: .ASCIZ "Enter code: "
+msgError: .ASCIZ "Invalid code!"
+msgMatchPos: .ASCIZ "Position matches: "
+msgMatchColor: .ASCIZ ", Colour matches: "
+msgWinner: .ASCIZ ", you WIN!"
+msgLoser: .ASCIZ ", you have lost the !"
+msgGameOver: .ASCIZ "Game Over!"
+// declare valid colors
+colorsArraySize: 24 // 6 colors * 4 bytes
+colorsArray: .WORD 114 // r
+103 // g
+98 // b
+121 // y
+112 // p
+99 // c
+
+

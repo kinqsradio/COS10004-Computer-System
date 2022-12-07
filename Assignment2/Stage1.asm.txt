@@ -1,0 +1,58 @@
+//R0: PROMPT
+//R3: INPUT
+
+MOV R12, #0x0A // whitespace
+BL Program
+
+Program:
+    MOV R0, #msgCodemakerName
+    MOV R3, #CodeMakerName
+    BL ReadInputStr
+
+    MOV R0, #msgCodebreakerName
+    MOV R3, #CodebreakerName
+    BL ReadInputStr
+
+    MOV R0, #msgMaxAttempts
+    BL ReadInputInt
+    STR R3, attemptLimit
+    MOV R0, #1 
+    STR R0, .Resolution
+
+    EndProgram:
+        B End
+
+ReadInputStr:
+    PUSH {LR}
+    STR R0, .WriteString
+    STR R3, .ReadString
+    STR R3, .WriteString
+    STRB R12, .WriteChar
+    POP {LR}
+    RET
+
+ReadInputInt:
+    PUSH {LR}
+    STR R0, .WriteString
+    LDR R3, .InputNum
+    STR R3, .WriteSignedNum
+    STRB R12, .WriteChar
+    RET
+
+End:
+    HALT
+
+// declare labels
+attemptLimit: .WORD 0
+
+// declare players name
+CodeMakerName: .BLOCK 128
+CodebreakerName: .BLOCK 128
+
+// declare messages
+msgCodemakerName: .ASCIZ "Codemaker is "
+msgCodebreakerName: .ASCIZ "Codebreaker is "
+msgMaxAttempts: .ASCIZ "Maximum number of guesses: "
+
+
+
